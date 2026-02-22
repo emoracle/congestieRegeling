@@ -1,0 +1,156 @@
+// @ts-check
+const Participant = require("./Participant");
+const CongestionPoint = require("./CongestionPoint");
+
+const isCP = (n) => n instanceof CongestionPoint;
+const isP = (n) => n instanceof Participant;
+
+/**
+ * Verzamelt alle deelnemers onder een node (recursief door CP-kinderen heen).
+ * @param {CongestionPoint|Participant} node Startnode in de topologie.
+ * @param {Participant[]} [out=[]] Accumulator met gevonden deelnemers.
+ * @returns {Participant[]} Lijst met alle deelnemers onder de opgegeven node.
+ */
+function collectParticipants(node, out = []) {
+  if (isP(node)) out.push(node);
+  else if (isCP(node)) node.children.forEach((ch) => collectParticipants(ch, out));
+  return out;
+}
+
+/**
+ * Sorteervolgorde voor beperken/vrijgeven: oudste interventie eerst,
+ * daarna hoogste flexcontract.
+ * @param {Participant} a Eerste deelnemer.
+ * @param {Participant} b Tweede deelnemer.
+ * @returns {number} Negatief/positief/0 volgens standaard sort-vergelijking.
+ */
+function sortForRestriction(a, b) {
+  const ta = a.lastInterventionAt == null ? -Infinity : a.lastInterventionAt;
+  const tb = b.lastInterventionAt == null ? -Infinity : b.lastInterventionAt;
+  if (ta !== tb) return ta - tb;
+  return b.flexContract - a.flexContract;
+}
+
+/**
+ * Beperkt deelnemers onder een congestiepunt tot hun basissetpoint totdat
+ * de congestiehoeveelheid is weggewerkt of er geen kandidaten meer zijn.
+ * @param {CongestionPoint} cp Congestiepunt waarop beperkt wordt.
+ * @param {number} nowMs Tijdstempel (ms) van de huidige regelcyclus.
+ * @returns {{remaining:number, changed:Array<{id:string,newSp:number,flexReduced:number}>}}
+ * Resterende congestie en deelnemers waarvan setpoint is gewijzigd.
+ */
+function restrictOnCp(cp, nowMs) {
+  let remaining = cp.meting - cp.upperLimit;
+  if (remaining <= 0) return { remaining: 0, changed: [] };
+
+  const participants = collectParticipants(cp).sort(sortForRestriction);
+  const changed = [];
+
+  for (const p of participants) {
+    if (remaining <= 0) break;
+    if (p.activeRestrictions.has(cp.id)) continue;
+
+    const flexUse = p.flexUse();
+    p.activeRestrictions.add(cp.id);
+    const oldSp = p.setpoint;
+    p.recomputeSetpoint();
+    p.lastInterventionAt = nowMs;
+
+    if (p.setpoint !== oldSp) {
+      changed.push({ id: p.id, newSp: p.setpoint, flexReduced: flexUse });
+    }
+
+    remaining -= flexUse;
+  }
+
+  return { remaining: Math.max(0, remaining), changed };
+}
+
+/**
+ * Geeft deelnemers vrij voor een specifiek congestiepunt door die restrictie te verwijderen.
+ * Een deelnemer komt alleen echt omhoog als er geen andere actieve restricties meer zijn.
+ * @param {CongestionPoint} cp Congestiepunt waarvoor vrijgave wordt uitgevoerd.
+ * @param {number} nowMs Tijdstempel (ms) van de huidige regelcyclus.
+ * @param {(a: Participant, b: Participant) => number} [orderFn=sortForRestriction]
+ * Sorteerfunctie voor vrijgavevolgorde.
+ * @returns {Array<{id:string,newSp:number}>} Deelnemers met gewijzigd setpoint.
+ */
+function releaseOnCp(cp, nowMs, orderFn = sortForRestriction) {
+  const participants = collectParticipants(cp).sort(orderFn);
+  const changed = [];
+
+  for (const p of participants) {
+    if (!p.activeRestrictions.has(cp.id)) continue;
+
+    const oldSp = p.setpoint;
+    p.activeRestrictions.delete(cp.id);
+    p.recomputeSetpoint();
+
+    if (p.setpoint !== oldSp) {
+      p.lastInterventionAt = nowMs;
+      changed.push({ id: p.id, newSp: p.setpoint });
+    }
+  }
+
+  return changed;
+}
+
+/**
+ * Werkt de toestand van één congestiepunt bij op basis van meting, grenswaarde en vrijgavewaarde.
+ * - FREE + meting > grenswaarde => ENTER_CONGESTION
+ * - CONGESTED + meting < vrijgavewaarde => EXIT_CONGESTION
+ * - CONGESTED + meting > grenswaarde => ADJUST_CONGESTION (bijregelen)
+ * @param {CongestionPoint} cp Congestiepunt dat geüpdatet wordt.
+ * @param {number} nowMs Tijdstempel (ms) van de huidige regelcyclus.
+ * @returns {{event:string, changed?:Array, remaining?:number}}
+ * Eventresultaat met optionele details over wijzigingen/restcongestie.
+ */
+function updateCpState(cp, nowMs) {
+  if (cp.state === "FREE" && cp.meting > cp.upperLimit) {
+    cp.state = "CONGESTED";
+    const res = restrictOnCp(cp, nowMs);
+    return { event: "ENTER_CONGESTION", ...res };
+  }
+
+  if (cp.state === "CONGESTED" && cp.meting < cp.releaseLimit) {
+    cp.state = "FREE";
+    const changed = releaseOnCp(cp, nowMs);
+    return { event: "EXIT_CONGESTION", changed };
+  }
+
+  // Bij aanhoudende congestie blijven we bijregelen zolang de meting boven
+  // de grenswaarde zit en er nog niet-beperkte deelnemers zijn.
+  if (cp.state === "CONGESTED" && cp.meting > cp.upperLimit) {
+    const res = restrictOnCp(cp, nowMs);
+    if (res.changed.length > 0) {
+      return { event: "ADJUST_CONGESTION", ...res };
+    }
+    return { event: "NO_CHANGE", changed: [], remaining: res.remaining };
+  }
+
+  return { event: "NO_CHANGE", changed: [] };
+}
+
+/**
+ * Draait één regelcyclus over alle opgegeven congestiepunten en verzamelt events per CP.
+ * @param {CongestionPoint[]} congestionPoints Geordende lijst van congestiepunten.
+ * @param {number} [nowMs=Date.now()] Tijdstempel (ms) voor deze cyclus.
+ * @returns {Map<string, {event:string, changed?:Array, remaining?:number}>}
+ * Map van CP-id naar resultaat van updateCpState.
+ */
+function runControlCycle(congestionPoints, nowMs = Date.now()) {
+  const cpEvents = new Map();
+  for (const cp of congestionPoints) {
+    cpEvents.set(cp.id, updateCpState(cp, nowMs));
+  }
+  return cpEvents;
+}
+
+module.exports = {
+  collectParticipants,
+  sortForRestriction,
+  restrictOnCp,
+  releaseOnCp,
+  updateCpState,
+  runControlCycle,
+};

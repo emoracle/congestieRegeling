@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+
+# Runtime/test output
+coverage/
+
+# Docs output (generated)
+docs/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Archives
+*.zip

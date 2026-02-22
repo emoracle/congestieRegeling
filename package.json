@@ -1,0 +1,13 @@
+{
+  "name": "congestie",
+  "version": "1.0.0",
+  "description": "Congestion simulation module",
+  "main": "modules/sim.js",
+  "scripts": {
+    "start": "node regeling.js",
+    "test": "node --test"
+  },
+  "keywords": ["regeling", "congestie", "simulatie"],
+  "author": "H.E. van Meerendonk",
+  "license": "ISC"
+}

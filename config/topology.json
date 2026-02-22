@@ -1,0 +1,54 @@
+{
+  "congestionPoints": [
+    {
+      "id": "CP_01",
+      "level": 0,
+      "schakelgrens": 150,
+      "vrijgavegrens": 130,
+      "children": [
+        {
+          "id": "CP_11",
+          "level": 1,
+          "schakelgrens": 60,
+          "vrijgavegrens": 50,
+          "children": [
+            { "id": "P_111", "basis": 10, "flex": 5 },
+            { "id": "P_112", "basis": 10, "flex": 10 },
+            { "id": "P_113", "basis": 10, "flex": 15 }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CP_02",
+      "level": 0,
+      "schakelgrens": 90,
+      "vrijgavegrens": 80,
+      "children": [
+        { "id": "P_201", "basis": 10, "flex": 5 },
+        { "id": "P_202", "basis": 10, "flex": 10 },
+        { "id": "P_203", "basis": 10, "flex": 20 }
+      ]
+    },
+    {
+      "id": "CP_03",
+      "level": 0,
+      "schakelgrens": 120,
+      "vrijgavegrens": 100,
+      "children": [
+        { "id": "P_301", "basis": 10, "flex": 8 },
+        {
+          "id": "CP_13",
+          "level": 1,
+          "schakelgrens": 70,
+          "vrijgavegrens": 60,
+          "children": [
+            { "id": "P_131", "basis": 10, "flex": 5 },
+            { "id": "P_132", "basis": 10, "flex": 10 },
+            { "id": "P_133", "basis": 10, "flex": 12 }
+          ]
+        }
+      ]
+    }
+  ]
+}
