@@ -5,6 +5,7 @@
   "main": "modules/sim.js",
   "scripts": {
     "start": "node regeling.js",
+    "listen:participants": "node participantsListener.js",
     "test": "node --test"
   },
   "keywords": ["regeling", "congestie", "simulatie"],

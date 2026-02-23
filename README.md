@@ -36,6 +36,17 @@ Dit toont:
 npm test
 ```
 
+## Setpoint events beluisteren
+
+Start listener en simulatie in twee terminals:
+
+```bash
+npm run listen:participants
+npm start
+```
+
+Bij elke setpointwijziging wordt een event uitgezonden en door de listener gelogd.
+
 ## Configuratie aanpassen
 
 1. Pas topologie en grenzen aan in `config/topology.json`.

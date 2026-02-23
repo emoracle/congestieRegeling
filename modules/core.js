@@ -1,6 +1,7 @@
 // @ts-check
 const Participant = require("./Participant");
 const CongestionPoint = require("./CongestionPoint");
+const { emitSetpointChanged } = require("./SetpointEvents");
 
 const isCP = (n) => n instanceof CongestionPoint;
 const isP = (n) => n instanceof Participant;
@@ -59,6 +60,15 @@ function restrictOnCp(cp, nowMs) {
 
     if (p.setpoint !== oldSp) {
       changed.push({ id: p.id, newSp: p.setpoint, flexReduced: flexUse });
+      emitSetpointChanged({
+        participantId: p.id,
+        cpId: cp.id,
+        reason: "RESTRICT",
+        oldSetpoint: oldSp,
+        newSetpoint: p.setpoint,
+        flexReduced: flexUse,
+        cycleTs: nowMs,
+      });
     }
 
     remaining -= flexUse;
@@ -92,6 +102,14 @@ function releaseOnCp(cp, nowMs, orderFn = sortForRestriction) {
     if (p.setpoint !== oldSp) {
       p.lastInterventionAt = nowMs;
       changed.push({ id: p.id, newSp: p.setpoint });
+      emitSetpointChanged({
+        participantId: p.id,
+        cpId: cp.id,
+        reason: "RELEASE",
+        oldSetpoint: oldSp,
+        newSetpoint: p.setpoint,
+        cycleTs: nowMs,
+      });
     }
   }
 
