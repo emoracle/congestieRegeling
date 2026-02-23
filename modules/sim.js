@@ -90,7 +90,10 @@ function buildNodeFromConfig(nodeConfig, nodeIndex) {
     return cp;
   }
 
-  const releaseAfterCycles = nodeConfig.vrijgaveNaCycli ?? nodeConfig.releaseAfterCycles ?? 1;
+  const releaseAfterCycles = nodeConfig.vrijgaveNaCycli
+    ?? nodeConfig.releaseAfterCycles
+    ?? nodeConfig.releaseAfterCyclus
+    ?? 1;
   const participant = new Participant(
     nodeConfig.id,
     nodeConfig.basis,

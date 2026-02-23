@@ -36,6 +36,24 @@ test("buildNodeFromConfig builds nested CP tree and participant index", () => {
   assert.ok(nodeIndex.get("P_111"));
 });
 
+test("buildNodeFromConfig reads releaseAfterCyclus and defaults to 1", () => {
+  const nodeIndex = new Map();
+  const cfg = {
+    id: "CP_RELEASE_CFG",
+    level: 0,
+    schakelgrens: 100,
+    vrijgavegrens: 90,
+    children: [
+      { id: "P_WITH_DELAY", basis: 10, flex: 5, releaseAfterCyclus: 1 },
+      { id: "P_DEFAULT", basis: 10, flex: 5 },
+    ],
+  };
+
+  buildNodeFromConfig(cfg, nodeIndex);
+  assert.equal(nodeIndex.get("P_WITH_DELAY").releaseAfterCycles, 1);
+  assert.equal(nodeIndex.get("P_DEFAULT").releaseAfterCycles, 1);
+});
+
 test("buildNodeFromConfig throws on duplicate participant id", () => {
   const nodeIndex = new Map();
   const cfg = {

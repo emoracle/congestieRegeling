@@ -25,7 +25,7 @@
       "schakelgrens": 90,
       "vrijgavegrens": 80,
       "children": [
-        { "id": "P_201", "basis": 10, "flex": 5 },
+        { "id": "P_201", "basis": 10, "flex": 5, "releaseAfterCyclus": 1 },
         { "id": "P_202", "basis": 10, "flex": 10 },
         { "id": "P_203", "basis": 10, "flex": 20 }
       ]
