@@ -39,8 +39,15 @@ npm test
 ## Configuratie aanpassen
 
 1. Pas topologie en grenzen aan in `config/topology.json`.
-2. Pas metingen aan in `input/metingen.json` en `input/metingen_cyclus2.json`.
-3. Run opnieuw met `npm start`.
+2. Per deelnemer kun je optioneel `vrijgaveNaCycli` zetten (default `1`):
+
+```json
+{ "id": "P_201", "basis": 10, "flex": 5, "vrijgaveNaCycli": 3 }
+```
+
+Dit betekent: na inklemmen mag deze deelnemer pas na 3 regelcycli weer vrijgegeven worden.
+3. Pas metingen aan in `input/metingen.json` en `input/metingen_cyclus2.json`.
+4. Run opnieuw met `npm start`.
 
 ## Licentie
 

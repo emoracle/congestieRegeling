@@ -53,6 +53,20 @@ function applyMeasurements(nodeIndex, measurements) {
 }
 
 /**
+ * Registreert een node-id en faalt bij dubbele IDs in de topologie.
+ * @param {Map<string, CongestionPoint|Participant>} nodeIndex Lookup waarin nodes worden geregistreerd.
+ * @param {string} nodeId Node-id die geregistreerd moet worden.
+ * @param {CongestionPoint|Participant} node Node-instantie.
+ * @returns {void}
+ */
+function registerNode(nodeIndex, nodeId, node) {
+  if (nodeIndex.has(nodeId)) {
+    throw new Error(`Duplicate topology node id: ${nodeId}`);
+  }
+  nodeIndex.set(nodeId, node);
+}
+
+/**
  * Bouwt recursief een node (CP of deelnemer) vanuit config en registreert die in de index.
  * @param {Object} nodeConfig Configfragment van CP of deelnemer.
  * @param {Map<string, CongestionPoint|Participant>} nodeIndex Lookup waarin nodes worden geregistreerd.
@@ -68,7 +82,7 @@ function buildNodeFromConfig(nodeConfig, nodeIndex) {
       nodeConfig.schakelgrens,
       nodeConfig.vrijgavegrens
     );
-    nodeIndex.set(cp.id, cp);
+    registerNode(nodeIndex, cp.id, cp);
 
     for (const child of nodeConfig.children || []) {
       cp.addChild(buildNodeFromConfig(child, nodeIndex));
@@ -76,8 +90,14 @@ function buildNodeFromConfig(nodeConfig, nodeIndex) {
     return cp;
   }
 
-  const participant = new Participant(nodeConfig.id, nodeConfig.basis, nodeConfig.flex);
-  nodeIndex.set(participant.id, participant);
+  const releaseAfterCycles = nodeConfig.vrijgaveNaCycli ?? nodeConfig.releaseAfterCycles ?? 1;
+  const participant = new Participant(
+    nodeConfig.id,
+    nodeConfig.basis,
+    nodeConfig.flex,
+    releaseAfterCycles
+  );
+  registerNode(nodeIndex, participant.id, participant);
   return participant;
 }
 

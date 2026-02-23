@@ -14,6 +14,7 @@ const {
   restrictOnCp,
   releaseOnCp,
   updateCpState,
+  runControlCycle,
 } = require("../modules/sim");
 
 test("loadTopologyConfig loads 3 level-0 congestion points", () => {
@@ -33,6 +34,49 @@ test("buildNodeFromConfig builds nested CP tree and participant index", () => {
   assert.equal(root.children[0].children.length, 3);
   assert.ok(nodeIndex.get("CP_11"));
   assert.ok(nodeIndex.get("P_111"));
+});
+
+test("buildNodeFromConfig throws on duplicate participant id", () => {
+  const nodeIndex = new Map();
+  const cfg = {
+    id: "CP_DUP_P",
+    level: 0,
+    schakelgrens: 50,
+    vrijgavegrens: 40,
+    children: [
+      { id: "P_DUP", basis: 10, flex: 5 },
+      { id: "P_DUP", basis: 10, flex: 8 },
+    ],
+  };
+
+  assert.throws(
+    () => buildNodeFromConfig(cfg, nodeIndex),
+    /Duplicate topology node id: P_DUP/
+  );
+});
+
+test("buildNodeFromConfig throws on duplicate congestion point id", () => {
+  const nodeIndex = new Map();
+  const rootCfg = {
+    id: "CP_SAME",
+    level: 0,
+    schakelgrens: 100,
+    vrijgavegrens: 90,
+    children: [],
+  };
+  const duplicateCfg = {
+    id: "CP_SAME",
+    level: 0,
+    schakelgrens: 120,
+    vrijgavegrens: 110,
+    children: [],
+  };
+
+  buildNodeFromConfig(rootCfg, nodeIndex);
+  assert.throws(
+    () => buildNodeFromConfig(duplicateCfg, nodeIndex),
+    /Duplicate topology node id: CP_SAME/
+  );
 });
 
 test("collectParticipants traverses CP and nested CP participants", () => {
@@ -89,13 +133,15 @@ test("updateCpState transitions FREE -> CONGESTED -> FREE", () => {
   p.meting = 22; // flexUse 12
 
   cp.meting = 62;
-  const enter = updateCpState(cp, 3000);
+  let events = runControlCycle([cp], 3000);
+  const enter = events.get("CP_T");
   assert.equal(enter.event, "ENTER_CONGESTION");
   assert.equal(cp.state, "CONGESTED");
   assert.equal(p.setpoint, p.basis);
 
   cp.meting = 35;
-  const exit = updateCpState(cp, 4000);
+  events = runControlCycle([cp], 4000);
+  const exit = events.get("CP_T");
   assert.equal(exit.event, "EXIT_CONGESTION");
   assert.equal(cp.state, "FREE");
   assert.equal(p.setpoint, p.basis + p.flexContract);
@@ -140,4 +186,57 @@ test("updateCpState adjusts again when CP stays congested in next cycle", () => 
   const second = updateCpState(cp, 8000);
   assert.equal(second.event, "ADJUST_CONGESTION");
   assert.equal(p2.setpoint, p2.basis);
+});
+
+test("restriction uses measured flex reduction and release restores contracted flex setpoint", () => {
+  const cp = new CongestionPoint("CP_ASYM", 0, 100, 90);
+  const p = new Participant("P_ASYM", 10, 5);
+  cp.addChild(p);
+
+  // Gemeten flex (30 - 10 = 20) is groter dan gecontracteerde flex (5).
+  p.meting = 30;
+  cp.meting = 106; // congestie = 6
+
+  let events = runControlCycle([cp], 9000);
+  const restrict = events.get("CP_ASYM");
+  assert.equal(restrict.remaining, 0);
+  assert.equal(restrict.changed.length, 1);
+  assert.equal(restrict.changed[0].id, "P_ASYM");
+  assert.equal(restrict.changed[0].flexReduced, 20);
+  assert.equal(p.setpoint, p.basis);
+
+  cp.meting = 80; // onder releaseLimit -> vrijgeven
+  events = runControlCycle([cp], 10000);
+  const exit = events.get("CP_ASYM");
+
+  assert.equal(exit.event, "EXIT_CONGESTION");
+  assert.equal(p.setpoint, p.basis + p.flexContract);
+});
+
+test("participant release can be delayed for configurable number of cycles", () => {
+  const cp = new CongestionPoint("CP_DELAY", 0, 50, 40);
+  const p = new Participant("P_DELAY", 10, 5, 3);
+  cp.addChild(p);
+
+  p.meting = 20;
+  cp.meting = 60; // trigger congestie
+  let events = runControlCycle([cp], 11000);
+  assert.equal(events.get("CP_DELAY").event, "ENTER_CONGESTION");
+  assert.equal(cp.state, "CONGESTED");
+  assert.equal(p.setpoint, p.basis);
+
+  cp.meting = 35; // vrijgavegebied
+
+  events = runControlCycle([cp], 12000);
+  assert.equal(events.get("CP_DELAY").event, "EXIT_CONGESTION");
+  assert.equal(cp.state, "FREE");
+  assert.equal(p.setpoint, p.basis);
+
+  events = runControlCycle([cp], 13000);
+  assert.equal(events.get("CP_DELAY").event, "RELEASE_WAIT");
+  assert.equal(p.setpoint, p.basis);
+
+  events = runControlCycle([cp], 14000);
+  assert.equal(events.get("CP_DELAY").event, "RELEASE_PROGRESS");
+  assert.equal(p.setpoint, p.basis + p.flexContract);
 });

@@ -52,6 +52,7 @@ function restrictOnCp(cp, nowMs) {
 
     const flexUse = p.flexUse();
     p.activeRestrictions.add(cp.id);
+    p.onRestrictedBy(cp.id);
     const oldSp = p.setpoint;
     p.recomputeSetpoint();
     p.lastInterventionAt = nowMs;
@@ -81,9 +82,11 @@ function releaseOnCp(cp, nowMs, orderFn = sortForRestriction) {
 
   for (const p of participants) {
     if (!p.activeRestrictions.has(cp.id)) continue;
+    if (!p.canReleaseFrom(cp.id)) continue;
 
     const oldSp = p.setpoint;
     p.activeRestrictions.delete(cp.id);
+    p.onReleasedBy(cp.id);
     p.recomputeSetpoint();
 
     if (p.setpoint !== oldSp) {
@@ -93,6 +96,32 @@ function releaseOnCp(cp, nowMs, orderFn = sortForRestriction) {
   }
 
   return changed;
+}
+
+/**
+ * Geeft aan of er onder dit congestiepunt nog actieve restricties zijn.
+ * @param {CongestionPoint} cp Congestiepunt.
+ * @returns {boolean}
+ */
+function hasPendingRestrictionsOnCp(cp) {
+  const participants = collectParticipants(cp);
+  return participants.some((p) => p.activeRestrictions.has(cp.id));
+}
+
+/**
+ * Laat voor alle unieke deelnemers in deze cyclus de vrijgave-tellers tikken.
+ * @param {CongestionPoint[]} congestionPoints Geordende lijst van congestiepunten.
+ * @returns {void}
+ */
+function tickReleaseCountdowns(congestionPoints) {
+  const seen = new Set();
+  for (const cp of congestionPoints) {
+    for (const p of collectParticipants(cp)) {
+      if (seen.has(p.id)) continue;
+      seen.add(p.id);
+      p.tickReleaseCountdowns();
+    }
+  }
 }
 
 /**
@@ -110,6 +139,16 @@ function updateCpState(cp, nowMs) {
     cp.state = "CONGESTED";
     const res = restrictOnCp(cp, nowMs);
     return { event: "ENTER_CONGESTION", ...res };
+  }
+
+  if (cp.state === "FREE") {
+    const changed = releaseOnCp(cp, nowMs);
+    if (changed.length > 0) {
+      return { event: "RELEASE_PROGRESS", changed };
+    }
+    if (hasPendingRestrictionsOnCp(cp)) {
+      return { event: "RELEASE_WAIT", changed: [] };
+    }
   }
 
   if (cp.state === "CONGESTED" && cp.meting < cp.releaseLimit) {
@@ -139,6 +178,7 @@ function updateCpState(cp, nowMs) {
  * Map van CP-id naar resultaat van updateCpState.
  */
 function runControlCycle(congestionPoints, nowMs = Date.now()) {
+  tickReleaseCountdowns(congestionPoints);
   const cpEvents = new Map();
   for (const cp of congestionPoints) {
     cpEvents.set(cp.id, updateCpState(cp, nowMs));
