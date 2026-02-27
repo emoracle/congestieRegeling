@@ -80,19 +80,37 @@ function restrictOnCp(cp, nowMs) {
 }
 
 /**
+ * Berekent hoeveel ruimte er op dit moment maximaal vrijgegeven kan worden.
+ * @param {CongestionPoint} cp Congestiepunt.
+ * @returns {number} Vrijgavebudget voor deze cyclus.
+ */
+function getReleaseBudget(cp) {
+  return Math.max(0, cp.upperLimit - cp.meting);
+}
+
+/**
  * Geeft deelnemers vrij voor een specifiek congestiepunt door die restrictie te verwijderen.
  * Een deelnemer komt alleen echt omhoog als er geen andere actieve restricties meer zijn.
  * @param {CongestionPoint} cp Congestiepunt waarvoor vrijgave wordt uitgevoerd.
  * @param {number} nowMs Tijdstempel (ms) van de huidige regelcyclus.
  * @param {(a: Participant, b: Participant) => number} [orderFn=sortForRestriction]
  * Sorteerfunctie voor vrijgavevolgorde.
- * @returns {Array<{id:string,newSp:number}>} Deelnemers met gewijzigd setpoint.
+ * @param {number} [releaseBudget=Number.POSITIVE_INFINITY] Maximaal vrij te geven hoeveelheid.
+ * @returns {{changed:Array<{id:string,newSp:number}>, remaining:number}}
+ * Deelnemers met gewijzigd setpoint en resterend vrijgavebudget.
  */
-function releaseOnCp(cp, nowMs, orderFn = sortForRestriction) {
+function releaseOnCp(
+  cp,
+  nowMs,
+  orderFn = sortForRestriction,
+  releaseBudget = Number.POSITIVE_INFINITY
+) {
+  let remaining = Math.max(0, releaseBudget);
   const participants = collectParticipants(cp).sort(orderFn);
   const changed = [];
 
   for (const p of participants) {
+    if (remaining <= 0) break;
     if (!p.activeRestrictions.has(cp.id)) continue;
     if (!p.canReleaseFrom(cp.id)) continue;
 
@@ -104,6 +122,7 @@ function releaseOnCp(cp, nowMs, orderFn = sortForRestriction) {
     if (p.setpoint !== oldSp) {
       p.lastInterventionAt = nowMs;
       changed.push({ id: p.id, newSp: p.setpoint });
+      remaining = Math.max(0, remaining - p.flexContract);
       emitSetpointChanged({
         participantId: p.id,
         cpId: cp.id,
@@ -115,7 +134,7 @@ function releaseOnCp(cp, nowMs, orderFn = sortForRestriction) {
     }
   }
 
-  return changed;
+  return { changed, remaining };
 }
 
 /**
@@ -162,7 +181,8 @@ function updateCpState(cp, nowMs) {
   }
 
   if (cp.state === "FREE") {
-    const changed = releaseOnCp(cp, nowMs);
+    const budget = getReleaseBudget(cp);
+    const { changed } = releaseOnCp(cp, nowMs, sortForRestriction, budget);
     if (changed.length > 0) {
       return { event: "RELEASE_PROGRESS", changed };
     }
@@ -173,7 +193,8 @@ function updateCpState(cp, nowMs) {
 
   if (cp.state === "CONGESTED" && cp.meting < cp.releaseLimit) {
     cp.state = "FREE";
-    const changed = releaseOnCp(cp, nowMs);
+    const budget = getReleaseBudget(cp);
+    const { changed } = releaseOnCp(cp, nowMs, sortForRestriction, budget);
     return { event: "EXIT_CONGESTION", changed };
   }
 
@@ -211,6 +232,7 @@ module.exports = {
   sortForRestriction,
   restrictOnCp,
   releaseOnCp,
+  getReleaseBudget,
   updateCpState,
   runControlCycle,
 };

@@ -51,7 +51,7 @@ test("releaseOnCp emits event when setpoint changes", () => {
   const events = [];
   const unsubscribe = onSetpointChanged((event) => events.push(event));
   try {
-    const changed = releaseOnCp(cp, 2000);
+    const { changed } = releaseOnCp(cp, 2000);
     assert.equal(changed.length, 1);
     assert.equal(events.length, 1);
     assert.equal(events[0].participantId, "P_EVT_U");

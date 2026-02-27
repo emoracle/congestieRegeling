@@ -41,7 +41,7 @@ test("releaseOnCp does not raise setpoint when another CP restriction remains", 
   p.recomputeSetpoint();
   assert.equal(p.setpoint, 10);
 
-  const changed = releaseOnCp(cpA, 2000);
+  const { changed } = releaseOnCp(cpA, 2000);
   assert.equal(changed.length, 0);
   assert.equal(p.setpoint, 10);
   assert.ok(p.activeRestrictions.has("CP_B"));
@@ -69,4 +69,32 @@ test("restriction uses measured flex reduction and release restores contracted f
 
   assert.equal(exit.event, "EXIT_CONGESTION");
   assert.equal(p.setpoint, p.basis + p.flexContract);
+});
+
+test("releaseOnCp releases in order within budget and tracks remaining", () => {
+  const cp = new CongestionPoint("CP_BUDGET", 0, 150, 100);
+  const pA = new Participant("P_A", 10, 50);
+  const pB = new Participant("P_B", 10, 40);
+  const pC = new Participant("P_C", 10, 60);
+  cp.addChild(pA);
+  cp.addChild(pB);
+  cp.addChild(pC);
+
+  for (const p of [pA, pB, pC]) {
+    p.activeRestrictions.add(cp.id);
+    p.recomputeSetpoint();
+  }
+
+  // Volgorde via oudste interventie eerst.
+  pA.lastInterventionAt = 1;
+  pB.lastInterventionAt = 2;
+  pC.lastInterventionAt = 3;
+
+  const { changed, remaining } = releaseOnCp(cp, 11000, undefined, 80);
+
+  assert.deepEqual(changed.map((c) => c.id), ["P_A", "P_B"]);
+  assert.equal(remaining, 0);
+  assert.equal(pA.setpoint, pA.basis + pA.flexContract);
+  assert.equal(pB.setpoint, pB.basis + pB.flexContract);
+  assert.equal(pC.setpoint, pC.basis);
 });
