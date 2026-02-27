@@ -10,6 +10,7 @@ const {
   sortForRestriction,
   restrictOnCp,
   releaseOnCp,
+  getReleaseBudget,
   updateCpState,
   runControlCycle,
 } = require("./core");
@@ -153,6 +154,7 @@ module.exports = {
   sortForRestriction,
   restrictOnCp,
   releaseOnCp,
+  getReleaseBudget,
   updateCpState,
   runControlCycle,
   runDemo,
