@@ -56,6 +56,9 @@ test("scenario_arbo1: nested CP congestion flow", () => {
   // p111 wordt door CP_01 beperkt en maakt de remaining direct 0.
   // Deelnemers die al op basis staan door CP_11 krijgen CP_01 ook als actieve inklemmer.
   assert.equal(p111.setpoint, p111.basis);
+  assert.equal(p112.setpoint, p112.basis);
+  assert.equal(p113.setpoint, p113.basis);
+
   assert.equal(p111.activeRestrictions.has("CP_11"), false);    
   assert.equal(p112.activeRestrictions.has("CP_11"), true );  
   assert.equal(p113.activeRestrictions.has("CP_11"), true);
