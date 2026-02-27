@@ -71,10 +71,10 @@ function restrictOnCp(cp, nowMs) {
       });
     }
 
-    remaining -= flexUse;
+    remaining = Math.max(0, remaining - flexUse);
   }
 
-  return { remaining: Math.max(0, remaining), changed };
+  return { remaining, changed };
 }
 
 /**

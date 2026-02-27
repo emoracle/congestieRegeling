@@ -70,3 +70,21 @@ test("updateCpState adjusts again when CP stays congested in next cycle", () => 
   assert.equal(second.event, "ADJUST_CONGESTION");
   assert.equal(p2.setpoint, p2.basis);
 });
+
+test("ENTER_CONGESTION can clamp both flex and non-flex participants to basis", () => {
+  const cp = new CongestionPoint("CP_MIX", 0, 50, 40);
+  const pFlex = new Participant("P_FLEX", 10, 10);
+  const pNoFlex = new Participant("P_NO_FLEX", 10, 5);
+  cp.addChild(pFlex);
+  cp.addChild(pNoFlex);
+
+  pFlex.meting = 15;   // flexUse = 5
+  pNoFlex.meting = 10; // flexUse = 0
+  cp.meting = 60;      // remaining = 10
+
+  const enter = updateCpState(cp, 9000);
+  assert.equal(enter.event, "ENTER_CONGESTION");
+  assert.equal(cp.state, "CONGESTED");
+  assert.equal(pFlex.setpoint, pFlex.basis);
+  assert.equal(pNoFlex.setpoint, pNoFlex.basis);
+});
