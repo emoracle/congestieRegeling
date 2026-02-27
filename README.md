@@ -4,16 +4,19 @@ Een Node.js project voor het simuleren van congestieregeling met:
 - congestiepunten (CP's) met schakelgrens en vrijgavegrens
 - deelnemers met basiswaarde en C-flex
 - cyclische metingen via JSON-input
+- setpoint-events (in-process + optioneel UDP)
 
 ## Structuur
 
-- `modules/core.js`: kernregeling (state-overgangen, beperken/vrijgeven)
+- `modules/core.js`: kernregeling (state-overgangen, beperken/vrijgeven, release-budget)
 - `modules/sim.js`: opbouw van model + run-flow
 - `modules/SimulationLogger.js`: console-logging van topologie en cycli
+- `modules/SetpointEvents.js`: event-bus + UDP emit
 - `config/topology.json`: topologie + vaste parameters
 - `input/metingen.json`: metingen cyclus 1
 - `input/metingen_cyclus2.json`: metingen cyclus 2
-- `test/sim.test.js`: unit-tests
+- `test/sim/`: unit-tests en scenario-tests
+- `participantsListener.js`: eenvoudige listener voor setpoint-events
 
 ## Vereisten
 
@@ -29,6 +32,13 @@ Dit toont:
 1. de topologie
 2. cyclus 1 (congestie)
 3. cyclus 2 (vrijgave)
+
+## Regelgedrag (kort)
+
+- **Inklemmen:** deelnemers worden op basis gezet volgens prioriteitsvolgorde.
+- **Vrijgeven:** gebeurt op basis van vrijgavebudget per cyclus:
+  - `releaseBudget = upperLimit - meting` (minimaal 0)
+  - deelnemers worden in volgorde vrijgegeven totdat budget op is.
 
 ## Testen
 
@@ -46,6 +56,11 @@ npm start
 ```
 
 Bij elke setpointwijziging wordt een event uitgezonden en door de listener gelogd.
+Je kunt UDP-emissie uitschakelen met:
+
+```bash
+PARTICIPANT_EVENTS_UDP_DISABLED=1 npm start
+```
 
 ## Configuratie aanpassen
 
