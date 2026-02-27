@@ -48,10 +48,11 @@ function restrictOnCp(cp, nowMs) {
   const changed = [];
 
   for (const p of participants) {
-    if (remaining <= 0) break;
     if (p.activeRestrictions.has(cp.id)) continue;
 
     const flexUse = p.flexUse();
+    if (remaining <= 0 && flexUse > 0) continue;
+
     p.activeRestrictions.add(cp.id);
     p.onRestrictedBy(cp.id);
     const oldSp = p.setpoint;
