@@ -51,7 +51,8 @@ function restrictOnCp(cp, nowMs) {
     if (p.activeRestrictions.has(cp.id)) continue;
 
     const flexUse = p.flexUse();
-    if (remaining <= 0 && flexUse > 0) continue;
+    const clampedByOtherCp = p.activeRestrictions.size > 0 && p.setpoint === p.basis;
+    if (remaining <= 0 && flexUse > 0 && !clampedByOtherCp) continue;
 
     p.activeRestrictions.add(cp.id);
     p.onRestrictedBy(cp.id);
