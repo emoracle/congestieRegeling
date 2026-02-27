@@ -35,4 +35,10 @@ test("5 deelnemers", () => {
   assert.equal(p3.setpoint, p3.basis);
   assert.equal(p4.setpoint, p4.basis + p4.flexContract);
   assert.equal(p5.setpoint, p5.basis);
+
+  assert.equal(p1.activeRestrictions.has("CP_R"), true);
+  assert.equal(p2.activeRestrictions.has("CP_R"), true);
+  assert.equal(p3.activeRestrictions.has("CP_R"), true);
+  assert.equal(p4.activeRestrictions.has("CP_R"), false);  // p4 heeft nog flexContract, dus geen restrictie
+  assert.equal(p5.activeRestrictions.has("CP_R"), true);
 });
